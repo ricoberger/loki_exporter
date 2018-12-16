@@ -1,0 +1,12 @@
+# my global config
+global:
+  scrape_interval: 60s
+  evaluation_interval: 60s
+  scrape_timeout: 30s
+
+scrape_configs:
+  - job_name: 'varlogs'
+    metrics_path: /metrics
+    static_configs:
+      - targets:
+        - loki_exporter:9524
