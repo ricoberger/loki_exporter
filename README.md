@@ -4,6 +4,8 @@ The [loki_exporter](https://github.com/ricoberger/loki_exporter) is a [Prometheu
 
 ## Building and running
 
+To run the loki_exporter you can use the [prebuild binaries](https://github.com/ricoberger/loki_exporter/releases) or the official Docker image from [Docker Hub](https://hub.docker.com/r/ricoberger/loki_exporter).
+
 ### Local Build
 
 ```sh
