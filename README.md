@@ -59,6 +59,13 @@ loki:
     username: <string>
     password: <string>
 #
+# ---------------------------------- Metrics -----------------------------------
+#
+metrics:
+  labels: <boolean>
+  labelValues: <boolean>
+  queries: <boolean>
+#
 # ---------------------------------- Queries -----------------------------------
 #
 queries:
@@ -71,13 +78,15 @@ queries:
     regexp: <string>
 ```
 
-The configuration file is divided into two sections. The `loki` section is used for the configuration of the Loki API endpoint. The default value for the `listenAddress` is `http://localhost:3100`. Basic authentication is disabled by default.
+The configuration file is divided into three sections. The `loki` section is used for the configuration of the Loki API endpoint. The default value for the `listenAddress` is `http://localhost:3100` and basic authentication is disabled by default.
+
+The metrics section enables/disables the different type of metrics, which should be exported.
 
 The `queries` section represents all queries which should be run against the Loki API. The parameters and default values can be found in the following table:
 
 | Parameter | Description | Default Value |
 | --------- | ----------- | ------------- |
-| `name` | A custom name for the query. The name is used for the exported metric: `loki_name` | |
+| `name` | A custom name for the query. The name is used for the exported metric: `loki_query_name` | |
 | `query` | Query must be a logQL query. | |
 | `limit` | Maximum number of entries which should be returned by the Loki API. | `-1` |
 | `start` | The start time for the query. Must be a valid golang duration string. The duration is added to the current time. | `-24h` |
@@ -100,21 +109,28 @@ Visiting the loki_exporter output on [http://localhost:9524](http://localhost:95
 ```
 # HELP loki_exporter_build_info A metric with a constant '1' value labeled by version, revision, branch, and goversion from which loki_exporter was built.
 # TYPE loki_exporter_build_info gauge
-loki_exporter_build_info{branch="HEAD",goversion="go1.11",revision="HEAD",version=""} 1
+loki_exporter_build_info{branch="master",goversion="go1.11",revision="841cbe36cf84fcf6f0a61d33e16930c63d12792c",version="v0.1.0-1-g841cbe3"} 1
 # HELP loki_exporter_total_scrapes Current total loki scrapes.
 # TYPE loki_exporter_total_scrapes counter
-loki_exporter_total_scrapes 3
+loki_exporter_total_scrapes 2
+# HELP loki_label_values_total total number of label values
+# TYPE loki_label_values_total gauge
+loki_label_values_total{label="__filename__"} 26
+loki_label_values_total{label="job"} 1
+# HELP loki_labels_total total number of label
+# TYPE loki_labels_total gauge
+loki_labels_total 2
+# HELP loki_query_varlogs_total number of entries
+# TYPE loki_query_varlogs_total gauge
+loki_query_varlogs_total{filename="/var/log/docker.log",job="varlogs"} 165
+loki_query_varlogs_total{filename="/var/log/docker.log.0",job="varlogs"} 33
+loki_query_varlogs_total{filename="/var/log/kmsg.log",job="varlogs"} 3
+loki_query_varlogs_total{filename="/var/log/vpnkit-forwarder.log",job="varlogs"} 183
+loki_query_varlogs_total{filename="/var/log/vsudd.log",job="varlogs"} 7
+loki_query_varlogs_total{filename="/var/log/vsudd.log.0",job="varlogs"} 6
 # HELP loki_success Was the last scrape of loki successful.
 # TYPE loki_success gauge
 loki_success 1
-# HELP loki_varlogs number of entries
-# TYPE loki_varlogs gauge
-loki_varlogs{filename="/var/log/docker.log",job="varlogs"} 151
-loki_varlogs{filename="/var/log/docker.log.0",job="varlogs"} 33
-loki_varlogs{filename="/var/log/kmsg.log",job="varlogs"} 2
-loki_varlogs{filename="/var/log/vpnkit-forwarder.log",job="varlogs"} 175
-loki_varlogs{filename="/var/log/vsudd.log",job="varlogs"} 6
-loki_varlogs{filename="/var/log/vsudd.log.0",job="varlogs"} 6
 ```
 
 ## Dependencies

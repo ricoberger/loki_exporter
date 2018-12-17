@@ -16,6 +16,13 @@ loki:
     username:
     password:
 #
+# ---------------------------------- Metrics -----------------------------------
+#
+metrics:
+  labels: true
+  labelValues: true
+  queries: true
+#
 # ---------------------------------- Queries -----------------------------------
 #
 queries:

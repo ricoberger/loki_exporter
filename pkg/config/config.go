@@ -20,6 +20,12 @@ type Config struct {
 		} `yaml:"basicAuth"`
 	} `yaml:"loki"`
 
+	Metrics struct {
+		Labels      bool `yaml:"labels"`
+		LabelValues bool `yaml:"labelValues"`
+		Queries     bool `yaml:"queries"`
+	} `yaml:"metrics"`
+
 	Queries []struct {
 		Name      string `yaml:"name"`
 		Query     string `yaml:"query"`
@@ -36,6 +42,10 @@ func (c *Config) LoadConfig(file string) error {
 	// Set default values
 	c.Loki.ListenAddress = "http://localhost:3100"
 	c.Loki.BasicAuth.Enabled = false
+
+	c.Metrics.Labels = true
+	c.Metrics.LabelValues = true
+	c.Metrics.Queries = true
 
 	// Load configuration file
 	data, err := ioutil.ReadFile(file)
