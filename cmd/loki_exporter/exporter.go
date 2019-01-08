@@ -97,13 +97,13 @@ func (e *Exporter) collectMetrics(metrics chan<- prometheus.Metric) {
 	}
 }
 
-// Describe describes all the metrics ever exported by the elasticsearch alerts exporter. It implements prometheus.Collector.
+// Describe describes all the metrics ever exported by the loki_exporter. It implements prometheus.Collector.
 func (e *Exporter) Describe(ch chan<- *prometheus.Desc) {
 	ch <- e.up.Desc()
 	ch <- e.totalScrapes.Desc()
 }
 
-// Collect fetches the stats from configured Elasticsearch location and delivers them as Prometheus metrics. It implements prometheus.Collector.
+// Collect queries the Loki API and delivers them as Prometheus metrics. It implements prometheus.Collector.
 func (e *Exporter) Collect(ch chan<- prometheus.Metric) {
 	e.resetMetrics()
 	e.scrape()
