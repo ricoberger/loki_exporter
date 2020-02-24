@@ -2,7 +2,6 @@ package config
 
 import (
 	"io/ioutil"
-	"strconv"
 	"time"
 
 	"gopkg.in/yaml.v2"
@@ -27,13 +26,13 @@ type Config struct {
 	} `yaml:"metrics"`
 
 	Queries []struct {
-		Name      string `yaml:"name"`
-		Query     string `yaml:"query"`
-		Limit     int64  `yaml:"limit"`
-		Start     string `yaml:"start"`
-		End       string `yaml:"end"`
-		Direction string `yaml:"direction"`
-		Regexp    string `yaml:"regexp"`
+		Name      string        `yaml:"name"`
+		Query     string        `yaml:"query"`
+		Limit     int64         `yaml:"limit"`
+		Start     time.Duration `yaml:"start"`
+		End       time.Duration `yaml:"end"`
+		Direction string        `yaml:"direction"`
+		Regexp    string        `yaml:"regexp"`
 	} `yaml:"queries"`
 }
 
@@ -64,26 +63,13 @@ func (c *Config) LoadConfig(file string) error {
 			c.Queries[index].Limit = -1
 		}
 
-		if c.Queries[index].Start == "" {
-			c.Queries[index].Start = "-24h"
+		if c.Queries[index].Start == 0 {
+			c.Queries[index].Start = time.Hour * -24
 		}
 
-		if c.Queries[index].End == "" {
-			c.Queries[index].End = "0s"
+		if c.Queries[index].End == 0 {
+			c.Queries[index].End = time.Second * 0
 		}
-
-		startDuration, err := time.ParseDuration(c.Queries[index].Start)
-		if err != nil {
-			return err
-		}
-
-		endDuration, err := time.ParseDuration(c.Queries[index].End)
-		if err != nil {
-			return err
-		}
-
-		c.Queries[index].Start = strconv.FormatInt(time.Now().Add(startDuration).UnixNano(), 10)
-		c.Queries[index].End = strconv.FormatInt(time.Now().Add(endDuration).UnixNano(), 10)
 	}
 
 	return nil
