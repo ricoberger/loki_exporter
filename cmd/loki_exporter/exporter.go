@@ -196,8 +196,8 @@ func (e *Exporter) getQueries() error {
 		requestURL := exporterConfig.Loki.ListenAddress + "/api/prom/query?"
 		requestURL += "query=" + query.Query
 		requestURL += "&limit=" + strconv.FormatInt(query.Limit, 10)
-		requestURL += "&start=" + query.Start
-		requestURL += "&end=" + query.End
+		requestURL += "&start=" + formatQueryTime(query.Start)
+		requestURL += "&end=" + formatQueryTime(query.End)
 		requestURL += "&direction=" + query.Direction
 		requestURL += "&regexp=" + query.Regexp
 
@@ -255,4 +255,8 @@ func (e *Exporter) getQueries() error {
 	}
 
 	return nil
+}
+
+func formatQueryTime(t time.Duration) string {
+	return strconv.FormatInt(time.Now().Add(t).UnixNano(), 10)
 }
