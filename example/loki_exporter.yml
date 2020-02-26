@@ -27,9 +27,8 @@ metrics:
 #
 queries:
   - name: varlogs
-    query: '{job="varlogs"}'
-    limit: -1
+    query: '{job="varlogs"} |= "error"'
+    limit: 1000
     start: -72h
     end: 24h
     direction:
-    regexp: error

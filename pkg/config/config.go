@@ -28,7 +28,7 @@ type Config struct {
 	Queries []struct {
 		Name      string        `yaml:"name"`
 		Query     string        `yaml:"query"`
-		Limit     int64         `yaml:"limit"`
+		Limit     int           `yaml:"limit"`
 		Start     time.Duration `yaml:"start"`
 		End       time.Duration `yaml:"end"`
 		Direction string        `yaml:"direction"`

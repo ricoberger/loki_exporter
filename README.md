@@ -75,7 +75,6 @@ queries:
     start: <string>
     end: <string>
     direction: <string>
-    regexp: <string>
 ```
 
 The configuration file is divided into three sections. The `loki` section is used for the configuration of the Loki API endpoint. The default value for the `listenAddress` is `http://localhost:3100` and basic authentication is disabled by default.
@@ -92,7 +91,6 @@ The `queries` section represents all queries which should be run against the Lok
 | `start` | The start time for the query. Must be a valid golang duration string. The duration is added to the current time. | `-24h` |
 | `end` | The end time for the query. Must be a valid golang duration string. The duration is added to the current time. | `0s` |
 | `direction` | Search direction must be `forward` or `backward`, useful when specifying a limit. | |
-| `regexp` | A regular expression to filter the returned results. | |
 
 ## Example
 

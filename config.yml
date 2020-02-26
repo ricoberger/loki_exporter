@@ -32,4 +32,3 @@ queries:
     start: <string>
     end: <string>
     direction: <string>
-    regexp: <string>
