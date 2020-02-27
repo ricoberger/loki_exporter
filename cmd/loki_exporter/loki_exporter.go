@@ -55,7 +55,7 @@ func main() {
 	r.MustRegister(version.NewCollector("loki_exporter"))
 	r.MustRegister(prometheus.NewGoCollector())
 	r.MustRegister(prometheus.NewProcessCollector(prometheus.ProcessCollectorOpts{}))
-	handler := promhttp.HandlerFor(r, promhttp.HandlerOpts{})
+	handler := promhttp.InstrumentMetricHandler(r, promhttp.HandlerFor(r, promhttp.HandlerOpts{}))
 
 	log.Infoln("Listening on", *listenAddress)
 	http.Handle(*metricsPath, handler)
