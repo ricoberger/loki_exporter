@@ -9,6 +9,7 @@ import (
 	"github.com/ricoberger/loki_exporter/pkg/config"
 
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/prometheus/common/log"
 	"github.com/prometheus/common/version"
 )
@@ -48,11 +49,16 @@ func main() {
 		log.Fatal(err)
 	}
 
-	prometheus.MustRegister(exporter)
-	prometheus.MustRegister(version.NewCollector("loki_exporter"))
+	// use our own registry to not get metrics from loki dependencies like etcd
+	r := prometheus.NewRegistry()
+	r.MustRegister(exporter)
+	r.MustRegister(version.NewCollector("loki_exporter"))
+	r.MustRegister(prometheus.NewGoCollector())
+	r.MustRegister(prometheus.NewProcessCollector(prometheus.ProcessCollectorOpts{}))
+	handler := promhttp.InstrumentMetricHandler(r, promhttp.HandlerFor(r, promhttp.HandlerOpts{}))
 
 	log.Infoln("Listening on", *listenAddress)
-	http.Handle(*metricsPath, prometheus.Handler())
+	http.Handle(*metricsPath, handler)
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte(`<html>
 		<head><title>Loki Exporter</title></head>

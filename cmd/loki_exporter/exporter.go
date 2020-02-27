@@ -1,13 +1,14 @@
 package main
 
 import (
-	"encoding/json"
-	"fmt"
-	"net/http"
+	"errors"
 	"strconv"
-	"strings"
 	"time"
 
+	"github.com/grafana/loki/pkg/logcli/client"
+	"github.com/grafana/loki/pkg/loghttp"
+	"github.com/grafana/loki/pkg/logproto"
+	"github.com/grafana/loki/pkg/logql"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/log"
 )
@@ -19,26 +20,18 @@ type Exporter struct {
 	up           prometheus.Gauge
 	totalScrapes prometheus.Counter
 	lokiMetrics  map[string]*prometheus.GaugeVec
-}
-
-// QueryResponse represents the structure of the response for a loki query request
-type QueryResponse struct {
-	Streams []struct {
-		Labels  string `json:"labels"`
-		Entries []struct {
-			Timestamp time.Time `json:"timestamp"`
-			Line      string    `json:"line"`
-		} `json:"entries"`
-	} `json:"streams"`
-}
-
-// LabelResponse represents the structure of the response for a loki label request
-type LabelResponse struct {
-	Values []string `json:"values"`
+	client       *client.Client
 }
 
 // NewExporter returns an initialized exporter
 func NewExporter(lokiMetrics map[string]*prometheus.GaugeVec) (*Exporter, error) {
+	client := &client.Client{
+		Address: exporterConfig.Loki.ListenAddress,
+	}
+	if exporterConfig.Loki.BasicAuth.Enabled {
+		client.Username = exporterConfig.Loki.BasicAuth.Username
+		client.Password = exporterConfig.Loki.BasicAuth.Password
+	}
 	return &Exporter{
 		up: prometheus.NewGauge(prometheus.GaugeOpts{
 			Namespace: namespace,
@@ -51,6 +44,7 @@ func NewExporter(lokiMetrics map[string]*prometheus.GaugeVec) (*Exporter, error)
 			Help:      "Current total loki scrapes.",
 		}),
 		lokiMetrics: lokiMetrics,
+		client:      client,
 	}, nil
 }
 
@@ -113,27 +107,10 @@ func (e *Exporter) Collect(ch chan<- prometheus.Metric) {
 	e.collectMetrics(ch)
 }
 
-func (e *Exporter) getLabels() (*LabelResponse, error) {
-	req, err := http.NewRequest("GET", exporterConfig.Loki.ListenAddress+"/api/prom/label", nil)
+func (e *Exporter) getLabels() (*loghttp.LabelResponse, error) {
+	res, err := e.client.ListLabelNames(true)
 	if err != nil {
 		return nil, err
-	}
-
-	if exporterConfig.Loki.BasicAuth.Enabled {
-		req.SetBasicAuth(exporterConfig.Loki.BasicAuth.Username, exporterConfig.Loki.BasicAuth.Password)
-	}
-
-	res, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return nil, err
-	}
-
-	result := LabelResponse{}
-	json.NewDecoder(res.Body).Decode(&result)
-	defer res.Body.Close()
-
-	if res.StatusCode != 200 {
-		return nil, fmt.Errorf("invalid response code: %d", res.StatusCode)
 	}
 
 	e.lokiMetrics["labels_total"] = prometheus.NewGaugeVec(
@@ -145,33 +122,16 @@ func (e *Exporter) getLabels() (*LabelResponse, error) {
 		[]string{},
 	)
 
-	e.lokiMetrics["labels_total"].With(prometheus.Labels{}).Set(float64(len(result.Values)))
+	e.lokiMetrics["labels_total"].With(prometheus.Labels{}).Set(float64(len(res.Data)))
 
-	return &result, nil
+	return res, nil
 }
 
-func (e *Exporter) getLabelValues(labels *LabelResponse) error {
-	for _, label := range labels.Values {
-		req, err := http.NewRequest("GET", exporterConfig.Loki.ListenAddress+"/api/prom/label/"+label+"/values", nil)
+func (e *Exporter) getLabelValues(labels *loghttp.LabelResponse) error {
+	for _, label := range labels.Data {
+		res, err := e.client.ListLabelValues(label, true)
 		if err != nil {
 			return err
-		}
-
-		if exporterConfig.Loki.BasicAuth.Enabled {
-			req.SetBasicAuth(exporterConfig.Loki.BasicAuth.Username, exporterConfig.Loki.BasicAuth.Password)
-		}
-
-		res, err := http.DefaultClient.Do(req)
-		if err != nil {
-			return err
-		}
-
-		result := LabelResponse{}
-		json.NewDecoder(res.Body).Decode(&result)
-		defer res.Body.Close()
-
-		if res.StatusCode != 200 {
-			return fmt.Errorf("invalid response code: %d", res.StatusCode)
 		}
 
 		e.lokiMetrics["label_values_"+label+"_total"] = prometheus.NewGaugeVec(
@@ -185,7 +145,7 @@ func (e *Exporter) getLabelValues(labels *LabelResponse) error {
 			},
 		)
 
-		e.lokiMetrics["label_values_"+label+"_total"].With(prometheus.Labels{"label": label}).Set(float64(len(result.Values)))
+		e.lokiMetrics["label_values_"+label+"_total"].With(prometheus.Labels{"label": label}).Set(float64(len(res.Data)))
 	}
 
 	return nil
@@ -193,52 +153,30 @@ func (e *Exporter) getLabelValues(labels *LabelResponse) error {
 
 func (e *Exporter) getQueries() error {
 	for _, query := range exporterConfig.Queries {
-		requestURL := exporterConfig.Loki.ListenAddress + "/api/prom/query?"
-		requestURL += "query=" + query.Query
-		requestURL += "&limit=" + strconv.FormatInt(query.Limit, 10)
-		requestURL += "&start=" + formatQueryTime(query.Start)
-		requestURL += "&end=" + formatQueryTime(query.End)
-		requestURL += "&direction=" + query.Direction
-		requestURL += "&regexp=" + query.Regexp
-
-		log.Debugln(requestURL)
-
-		req, err := http.NewRequest("GET", requestURL, nil)
+		res, err := e.client.QueryRange(
+			query.Query,
+			query.Limit,
+			getQueryTime(query.Start),
+			getQueryTime(query.End),
+			getDirection(query.Direction),
+			// let loki choose a default step
+			0,
+			// quiet logging
+			true,
+		)
 		if err != nil {
 			return err
 		}
-
-		if exporterConfig.Loki.BasicAuth.Enabled {
-			req.SetBasicAuth(exporterConfig.Loki.BasicAuth.Username, exporterConfig.Loki.BasicAuth.Password)
+		if res.Data.ResultType != logql.ValueTypeStreams {
+			return errors.New("invalid result type")
 		}
 
-		res, err := http.DefaultClient.Do(req)
-		if err != nil {
-			return err
-		}
-
-		if res.StatusCode != 200 {
-			return fmt.Errorf("invalid response code: %d", res.StatusCode)
-		}
-
-		result := QueryResponse{}
-		json.NewDecoder(res.Body).Decode(&result)
-		defer res.Body.Close()
-
-		for index, stream := range result.Streams {
-			var labelNames []string
-			labels := prometheus.Labels{}
+		for index, stream := range res.Data.Result.(loghttp.Streams) {
 			name := query.Name + strconv.FormatInt(int64(index), 10)
+			labelNames := make([]string, 0, len(stream.Labels.Map()))
 
-			labelValuePairs := strings.Split(stream.Labels[1:len(stream.Labels)-1], ",")
-
-			for _, labelValuePair := range labelValuePairs {
-				labelValuePairSlice := strings.Split(labelValuePair, "=")
-				label := labelValuePairSlice[0]
-				value := labelValuePairSlice[1]
-
-				labels[strings.Trim(strings.TrimSpace(label), "_")] = strings.TrimSpace(value[1 : len(value)-1])
-				labelNames = append(labelNames, strings.Trim(strings.TrimSpace(label), "_"))
+			for k := range stream.Labels.Map() {
+				labelNames = append(labelNames, k)
 			}
 
 			e.lokiMetrics[name] = prometheus.NewGaugeVec(
@@ -250,13 +188,20 @@ func (e *Exporter) getQueries() error {
 				labelNames,
 			)
 
-			e.lokiMetrics[name].With(labels).Set(float64(len(stream.Entries)))
+			e.lokiMetrics[name].With(stream.Labels.Map()).Set(float64(len(stream.Entries)))
 		}
 	}
 
 	return nil
 }
 
-func formatQueryTime(t time.Duration) string {
-	return strconv.FormatInt(time.Now().Add(t).UnixNano(), 10)
+func getQueryTime(t time.Duration) time.Time {
+	return time.Now().Add(t)
+}
+
+func getDirection(direction string) logproto.Direction {
+	if direction == "forward" {
+		return logproto.FORWARD
+	}
+	return logproto.BACKWARD
 }
